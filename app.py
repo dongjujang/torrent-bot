@@ -15,7 +15,7 @@ def post_message(title, link):
   payload = { 'text': '<' + link + '|' + title + '>' }
   data = { 'payload': json.dumps(payload) }
   try:
-    requests.post(url, data=data)
+    requests.post(webhook, data=data)
   except Exception as e:
     print e
 
@@ -75,8 +75,7 @@ def main():
       for url in torrent_urls.split(','):
         get_posts(url)
 
-    time.sleep(1)
-    #time.sleep(60 * 5)
+    time.sleep(60 * 10)
         
 if __name__ == '__main__':
   main()
