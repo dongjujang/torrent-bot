@@ -67,7 +67,7 @@ def get_posts(url):
       download_url = link.replace('board.php', 'download.php')
       referer = link
       params = { 'referer': referer, 'download_url': download_url }
-      link = proxy_url + '?' + urlib.urlencode(params)
+      link = proxy_url + '?' + urllib.urlencode(params)
 
     post_message(title, link)
 
