@@ -2,6 +2,7 @@
 import os
 import json
 import time
+import urllib
 import requests
 import BeautifulSoup
 
@@ -61,7 +62,12 @@ def get_posts(url):
     LATEST_NUMBERS[url] = number
     wr_id = link.split('wr_id=')[1]
     link = url + '&wr_id=' + wr_id
-    #link = link.replace('board.php', 'download.php')
+    proxy_url = os.environ.get('PROXY_URL', None)
+    if proxy_url:
+      download_url = link.replace('board.php', 'download.php')
+      referer = link
+      params = { 'referer': referer, 'download_url': download_url }
+      link = proxy_url + '?' + urlib.urlencode(params)
 
     post_message(title, link)
 
