@@ -2,12 +2,16 @@
 import os
 import json
 import time
+import redis
 import urllib
 import requests
 import BeautifulSoup
 
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/40.0.2214.93 Safari/537.36'
-LATEST_NUMBERS = {}
+REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
+REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
+REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD', '')
+DB = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0, password=REDIS_PASSWORD)
 
 def post_message(title, link):
   webhook = os.environ.get('WEBHOOK', None)
@@ -55,11 +59,21 @@ def get_posts(url):
     number = int(num_span.text)
     title = subject_a.text
     link = subject_a.get('href', None)
-    latest_number = LATEST_NUMBERS.get(url, 0)
+    latest_number = None
+    try:
+      latest_number = int(DB.get(url))
+    except Exception as e:
+      print e
+      continue
+
     if number <= latest_number:
       continue
 
-    LATEST_NUMBERS[url] = number
+    try:
+      DB.set(url, number)
+    except Exception as e:
+      print e
+      continue
     wr_id = link.split('wr_id=')[1]
     link = url + '&wr_id=' + wr_id
     proxy_url = os.environ.get('PROXY_URL', None)
