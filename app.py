@@ -61,7 +61,11 @@ def get_posts(url):
     link = subject_a.get('href', None)
     latest_number = None
     try:
-      latest_number = int(DB.get(url))
+      latest_number = DB.get(url)
+      if latest_number == None:
+        latest_number = 0
+      else:
+        latest_number = int(latest_number)
     except Exception as e:
       print e
       continue
