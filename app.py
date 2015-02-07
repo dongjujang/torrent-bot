@@ -24,11 +24,32 @@ def post_message(title, link):
   except Exception as e:
     print e
 
+def get_torrent_url(session, headers, download_url):
+  new_url = None
+  index = 0
+  while True:
+    try:
+      new_url = ("%s&no=%s" % (download_url, index))
+      response = session.get(new_url, headers=headers, stream=True)
+      if not response.ok:
+        break
+      content_disposition = response.headers.get('content-disposition', '')
+      if not '.torrent' in content_disposition:
+        index += 1
+        continue
+      break
+    except Exception as e:
+      print e
+      break
+
+  return new_url
+
 def get_posts(url):
-  headers = { 'User-Agent': USER_AGENT }
+  session = requests.Session()
+  headers = { 'User-Agent': USER_AGENT, 'referer': url }
   response = None
   try:
-    response = requests.get(url, headers=headers)
+    response = session.get(url, headers=headers)
   except Exception as e:
     print e
   soup = BeautifulSoup.BeautifulSoup(response.text)
@@ -83,6 +104,9 @@ def get_posts(url):
     proxy_url = os.environ.get('PROXY_URL', None)
     if proxy_url:
       download_url = link.replace('board.php', 'download.php')
+      download_url = get_torrent_url(session, headers, download_url)
+      if not download_url:
+        continue
       referer = link
       params = { 'referer': referer, 'download_url': download_url }
       link = proxy_url + '?' + urllib.urlencode(params)
