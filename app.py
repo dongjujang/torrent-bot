@@ -24,8 +24,18 @@ def post_message(title, link):
   except Exception as e:
     print e
 
-def get_torrent_url(session, headers, download_url):
+def get_torrent_url(session, headers, referer, download_url):
   new_url = None
+
+  try:
+    response = session.get(referer, headers=headers)
+    if not response.ok:
+      return new_url
+  except Exception as e:
+    print e
+    return new_url
+
+  headers['referer'] = referer
   index = 0
   while True:
     try:
@@ -103,11 +113,11 @@ def get_posts(url):
     link = url + '&wr_id=' + wr_id
     proxy_url = os.environ.get('PROXY_URL', None)
     if proxy_url:
-      download_url = link.replace('board.php', 'download.php')
-      download_url = get_torrent_url(session, headers, download_url)
+      referer = link
+      download_url = referer.replace('board.php', 'download.php')
+      download_url = get_torrent_url(session, headers, referer, download_url)
       if not download_url:
         continue
-      referer = link
       params = { 'referer': referer, 'download_url': download_url }
       link = proxy_url + '?' + urllib.urlencode(params)
 
