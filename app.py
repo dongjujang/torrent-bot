@@ -142,7 +142,7 @@ def main():
         return
       while True:
         for url in torrent_urls.split(','):
-          num = 1314
+          num = 1318
           page_num = range(1, num + 1)
           for i in page_num:
             get_posts(url + '&page=' + str(num), url)
