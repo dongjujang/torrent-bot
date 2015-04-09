@@ -1,31 +1,39 @@
+
+
 #-*- coding: utf-8 -*-
 import os
 import json
 import time
-import redis
+import bottle
 import urllib
 import requests
+import threading
 import BeautifulSoup
 
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/40.0.2214.93 Safari/537.36'
-REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
-REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
-REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD', '')
-DB = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0, password=REDIS_PASSWORD)
+WEBHOOK_URL = os.environ.get('WEBHOOK_URL', None)
 
-def post_message(title, link):
-  webhook = os.environ.get('WEBHOOK', None)
-  if not webhook:
+collection = 'movie_eng'
+
+keys = ['subject',
+        'torrent_file',
+        'smi_file',
+        'size',
+        'number']
+
+doc = {}
+
+def post_message(doc):
+  if not WEBHOOK_URL:
+    print('No webhook url!')
     return
-  payload = { 'text': '<' + link + '|' + title + '>' }
-  data = { 'payload': json.dumps(payload) }
-  try:
-    requests.post(webhook, data=data)
-  except Exception as e:
-    print e
+  requests.post(WEBHOOK_URL + '/' + collection, data=doc)
+  print(doc)
 
-def get_torrent_url(session, headers, referer, download_url):
+def get_torrent_url(session, headers, referer, download_url, page):
   new_url = None
+  torrent_url = None
+  smi_url = None
 
   try:
     response = session.get(referer, headers=headers)
@@ -39,22 +47,32 @@ def get_torrent_url(session, headers, referer, download_url):
   index = 0
   while True:
     try:
-      new_url = ("%s&no=%s" % (download_url, index))
+      new_url = ("%s&no=%s&%s" % (download_url, index, page))
       response = session.get(new_url, headers=headers, stream=True)
       if not response.ok:
         break
       content_disposition = response.headers.get('content-disposition', '')
-      if not '.torrent' in content_disposition:
-        index += 1
-        continue
-      break
+      if '.torrent' in content_disposition:
+        torrent_url = new_url
+      if '.smi' in content_disposition:
+        smi_url = new_url
+      if torrent_url and smi_url:
+        break
+      index += 1
+      if index > 4:
+        smi_url = 'nosub'
+        break
+      
+      
     except Exception as e:
       print e
       break
 
-  return new_url
+  torrent_smi_url = torrent_url + 'preamble' + smi_url
+  return torrent_smi_url
 
-def get_posts(url):
+
+def get_posts(url, url_no_page):
   session = requests.Session()
   headers = { 'User-Agent': USER_AGENT, 'referer': url }
   response = None
@@ -63,77 +81,82 @@ def get_posts(url):
   except Exception as e:
     print e
   soup = BeautifulSoup.BeautifulSoup(response.text)
-  board_list = soup.find('table', attrs={'id': 'board_list'})
-  
+  board_list = soup.find('table', attrs={'class': 'board_list'})
+
   if not board_list:
     return
   elements = board_list.findAll('tr')
   if not elements:
     return
-  
-  index = len(elements)
-  while True:
-    index -= 1
-    if index < 0:
-      break
-    element = elements[index]
-    num_td = element.find('td', attrs={'class': 'num'})
+  for element in elements:
+#    print(element)
     subject_td = element.find('td', attrs={'class': 'subject'})
-    if not num_td or not subject_td:
-      continue
+    size_td = element.find('td', attrs={'class': 'size'})
 
-    num_span = num_td.find('span')
-    subject_a = subject_td.find('a')
-    if not num_span or not subject_a:
-      continue
+    if subject_td != None:      
+      subject_a = subject_td.find('a')
 
-    number = int(num_span.text)
-    title = subject_a.text
-    link = subject_a.get('href', None)
-    latest_number = None
-    try:
-      latest_number = DB.get(url)
-      if latest_number == None:
-        latest_number = 0
-      else:
-        latest_number = int(latest_number)
-    except Exception as e:
-      print e
-      continue
+      size = size_td.text
+      doc[keys[3]] = size
+      title = subject_a.text
+      doc[keys[0]] = title
+      link = subject_a.get('href', None)
 
-    if number <= latest_number:
-      continue
+      wr_id_temp = link.split('wr_id=')[1]
+      wr_id = wr_id_temp.split('&')[0]
+      page = wr_id_temp.split('&')[1]
+      number = int(wr_id)
+      doc[keys[4]] = number
+#      print(size, title, number)
+      link = url_no_page + '&wr_id=' + wr_id
+      proxy_url = os.environ.get('PROXY_URL', None)
+      if proxy_url:
+        referer = link + '&' + page
+        download_url_replace = referer.replace('board.php', 'download.php')
+        download_url = get_torrent_url(session, headers, referer, download_url_replace, page)
+        if not download_url:
+          continue
+        torrent_file_url = download_url.split('preamble')[0]
+        smi_file_url = download_url.split('preamble')[1]
+        
+        params = { 'referer': referer, 'download_url': torrent_file_url }
+        torrent_file_link = proxy_url + '?' + urllib.urlencode(params)
 
-    try:
-      DB.set(url, number)
-    except Exception as e:
-      print e
-      continue
-    wr_id = link.split('wr_id=')[1]
-    link = url + '&wr_id=' + wr_id
-    proxy_url = os.environ.get('PROXY_URL', None)
-    if proxy_url:
-      referer = link
-      download_url = referer.replace('board.php', 'download.php')
-      download_url = get_torrent_url(session, headers, referer, download_url)
-      if not download_url:
-        continue
-      params = { 'referer': referer, 'download_url': download_url }
-      link = proxy_url + '?' + urllib.urlencode(params)
+        params_smi = { 'referer': referer, 'download_url': smi_file_url }
+        smi_file_link = proxy_url + '?' + urllib.urlencode(params_smi)
+        if smi_file_url == 'nosub':
+          smi_file_link = 'nosub'
 
-    post_message(title, link)
+        doc[keys[1]] = torrent_file_link
+        doc[keys[2]] = smi_file_link
+        
+      post_message(doc)
 
 def main():
-  while True:
 
-    for zero in '.':
-      torrent_urls = os.environ.get('URLS', None)
+      torrent_urls = os.environ.get('TORRENT_URLS', None)
       if torrent_urls == None:
-        break
-      for url in torrent_urls.split(','):
-        get_posts(url)
-
-    time.sleep(60 * 10)
+        print("No torrent_url")
+        return
+      while True:
+        for url in torrent_urls.split(','):
+          num = 1317
+          page_num = range(1, num + 1)
+          for i in page_num:
+            get_posts(url + '&page=' + str(num), url)
+            num = num - 1
+          
+            time.sleep(30)
         
+@bottle.route('/')
+def index():
+  return ''
+
 if __name__ == '__main__':
-  main()
+  debug = False
+  if debug:
+    main()
+  else:
+    threading.Thread(target=main).start()
+    port = os.environ.get('PORT', 8888)
+    bottle.run(host='0.0.0.0', port=port)
