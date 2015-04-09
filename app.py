@@ -67,10 +67,9 @@ def get_torrent_url(session, headers, referer, download_url, page):
     except Exception as e:
       print e
       break
-
-#  torrent_smi_url = torrent_url + 'preamble' + smi_url
-  torrent_smi_url = torrent_url + 'preamble{}'.format(smi_url)
-  print torrent_smi_url
+  if not torrent_url:
+    torrent_url = 'notorrent'
+  torrent_smi_url = torrent_url + 'preamble' + smi_url
   return torrent_smi_url
 
 
@@ -119,6 +118,8 @@ def get_posts(url, url_no_page):
         if not download_url:
           continue
         torrent_file_url = download_url.split('preamble')[0]
+        if torrent_file_url == 'notorrent':
+          continue
         smi_file_url = download_url.split('preamble')[1]
         
         params = { 'referer': referer, 'download_url': torrent_file_url }
