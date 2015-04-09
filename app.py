@@ -68,7 +68,9 @@ def get_torrent_url(session, headers, referer, download_url, page):
       print e
       break
 
-  torrent_smi_url = torrent_url + 'preamble' + smi_url
+#  torrent_smi_url = torrent_url + 'preamble' + smi_url
+  torrent_smi_url = torrent_url + 'preamble{}'.format(smi_url)
+  print torrent_smi_url
   return torrent_smi_url
 
 
@@ -140,7 +142,7 @@ def main():
         return
       while True:
         for url in torrent_urls.split(','):
-          num = 1317
+          num = 1314
           page_num = range(1, num + 1)
           for i in page_num:
             get_posts(url + '&page=' + str(num), url)
