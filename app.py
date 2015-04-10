@@ -12,6 +12,7 @@ import BeautifulSoup
 
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/40.0.2214.93 Safari/537.36'
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL', None)
+SLEEP_TIME = os.environ.get('SLEEP_TIME', 60 * 60)
 
 collection = 'movie_eng'
 
@@ -69,6 +70,8 @@ def get_torrent_url(session, headers, referer, download_url, page):
       break
   if not torrent_url:
     torrent_url = 'notorrent'
+  if not smi_url:
+    smi_url = 'nosub'
   torrent_smi_url = torrent_url + 'preamble' + smi_url
   return torrent_smi_url
 
@@ -141,15 +144,15 @@ def main():
       if torrent_urls == None:
         print("No torrent_url")
         return
+
       while True:
         for url in torrent_urls.split(','):
-          num = 1318
-          page_num = range(1, num + 1)
+          num = 2
+          page_num = range(1,  num + 1)
           for i in page_num:
             get_posts(url + '&page=' + str(num), url)
             num = num - 1
-          
-            time.sleep(30)
+        time.sleep(SLEEP_TIME)
         
 @bottle.route('/')
 def index():
